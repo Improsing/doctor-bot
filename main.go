@@ -46,6 +46,8 @@ func main() {
 				handler.HandleStart(bot, update)
 			case "add":
 				handler.HandleAdd(bot, update)
+			case "list":
+				handler.HandleList(bot, update)
 			}
 		}
 	}

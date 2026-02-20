@@ -21,3 +21,21 @@ func (h *PatientRepository) Create(patient *models.Patient) error {
 	`, patient.FullName, patient.Age, patient.Diagnosis)
 	return err
 }
+
+func (h *PatientRepository) GetAll() ([]models.Patient, error) {
+	var patients []models.Patient
+
+	err := h.db.Select(&patients, "SELECT * FROM patients ORDER BY created_at DESC")
+	if err != nil {
+		return nil, err
+	}
+
+	return patients, nil
+
+}
+
+func (h *PatientRepository) DeleteByID(id int) error {
+	_, err := h.db.Exec(`
+		DELETE FROM patients WHERE id=$1`, id)
+	return err
+}

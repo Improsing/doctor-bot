@@ -3,6 +3,7 @@ package handlers
 import (
 	"doctor-bot/internal/models"
 	"doctor-bot/internal/repository"
+	"fmt"
 	_ "fmt"
 	"log"
 	"strconv"
@@ -56,7 +57,9 @@ func (h *DoctorHandler) HandleAdd(bot *tgbotapi.BotAPI, update tgbotapi.Update) 
 
 	if len(parts) != 3 {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-			"Вы ввели неверные данные ❌")
+			`Укажите данные пациента в следующем виде:
+
+✅ФИО; возраст; диагноз`)
 		bot.Send(msg)
 		return
 	}
@@ -94,4 +97,74 @@ func (h *DoctorHandler) HandleAdd(bot *tgbotapi.BotAPI, update tgbotapi.Update) 
 		"Пациент успешно добавлен ✅")
 	bot.Send(msg)
 
+}
+
+func (h *DoctorHandler) HandleList(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	patients, err := h.patientRepo.GetAll()
+	if err != nil {
+		log.Println("Ошибка при попытке получить список пациентов", err)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+			"Произошла ошибка при получении данных")
+		bot.Send(msg)
+		return
+	}
+
+	if len(patients) == 0 {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+			"Список пациентов пуст")
+		bot.Send(msg)
+		return
+	}
+
+	var builder strings.Builder
+	builder.WriteString("📋 Список пациентов:\n\n")
+
+	for i, patient := range patients {
+		builder.WriteString(fmt.Sprintf(
+			"%d. 👤 %s\n   Возраст: %d лет\n   Диагноз: %s\n\n",
+			i+1,
+			patient.FullName,
+			patient.Age,
+			patient.Diagnosis,
+		))
+
+	}
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, builder.String())
+	bot.Send(msg)
+
+}
+
+func (h *DoctorHandler) HandleDelete(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	input := update.Message.Text
+	cleaned := strings.TrimPrefix(input, "/delete ")
+	cleaned = strings.TrimSpace(cleaned)
+
+	id, err := strconv.Atoi(cleaned)
+	if err != nil {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+			"ID должен быть числом")
+		bot.Send(msg)
+		return
+	}
+
+	if cleaned == "" {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+			"Укажите ID пациента: /delete 3")
+		bot.Send(msg)
+		return
+	}
+
+	err = h.patientRepo.DeleteByID(id)
+	if err != nil {
+		log.Println("Ошибка при попытке удалить пациента", err)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+			"Ошибка при удалении пациента")
+		bot.Send(msg)
+		return
+	}
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+		"Пациент успешно удален")
+	bot.Send(msg)
 }
