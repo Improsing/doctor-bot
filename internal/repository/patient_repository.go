@@ -2,6 +2,7 @@ package repository
 
 import (
 	"doctor-bot/internal/models"
+	"errors"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -16,9 +17,9 @@ func NewPatientRepository(db *sqlx.DB) *PatientRepository {
 
 func (h *PatientRepository) Create(patient *models.Patient) error {
 	_, err := h.db.Exec(`
-		INSERT INTO patients (full_name, age, diagnosis)
-		VALUES ($1, $2, $3)
-	`, patient.FullName, patient.Age, patient.Diagnosis)
+		INSERT INTO patients (full_name, age, diagnosis, doctor_id)
+		VALUES ($1, $2, $3, $4)
+	`, patient.FullName, patient.Age, patient.Diagnosis, patient.DoctorID)
 	return err
 }
 
@@ -34,8 +35,21 @@ func (h *PatientRepository) GetAll() ([]models.Patient, error) {
 
 }
 
-func (h *PatientRepository) DeleteByID(id int) error {
-	_, err := h.db.Exec(`
-		DELETE FROM patients WHERE id=$1`, id)
-	return err
+func (h *PatientRepository) DeleteByID(id int64, doctorID int64) error {
+	result, err := h.db.Exec(`
+		DELETE FROM patients WHERE id= $1 AND doctor_id = $2`, id, doctorID)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return errors.New("patient not found or access denied")
+	}
+
+	return nil
 }

@@ -51,6 +51,9 @@ func (h *DoctorHandler) HandleStart(bot *tgbotapi.BotAPI, update tgbotapi.Update
 }
 
 func (h *DoctorHandler) HandleAdd(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	tgID := update.Message.From.ID
+	log.Println("Telegram ID:", tgID)
+
 	input := update.Message.Text
 	cleaned := strings.TrimPrefix(input, "/add ")
 	parts := strings.Split(cleaned, ";")
@@ -78,10 +81,20 @@ func (h *DoctorHandler) HandleAdd(bot *tgbotapi.BotAPI, update tgbotapi.Update) 
 
 	log.Println(fullName, age, diagnosis)
 
+	doctor, err := h.doctorRepo.GetByTelegramID(tgID)
+	if err != nil {
+		log.Println("Ошибка GetByTelegramID:", err)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+			"Вы не зарегистрированы как доктор.")
+		bot.Send(msg)
+		return
+	}
+
 	newPatient := models.Patient{
 		FullName:  fullName,
 		Age:       age,
 		Diagnosis: diagnosis,
+		DoctorID:  doctor.ID,
 	}
 
 	err = h.patientRepo.Create(&newPatient)
@@ -89,7 +102,7 @@ func (h *DoctorHandler) HandleAdd(bot *tgbotapi.BotAPI, update tgbotapi.Update) 
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
 			"Ошибка при добавлении пациента")
 		bot.Send(msg)
-		log.Println("Ошибка при сохранении пациента:", err)
+		log.Println("Ошибка при добавлении пациента:", err)
 		return
 	}
 
@@ -140,13 +153,15 @@ func (h *DoctorHandler) HandleDelete(bot *tgbotapi.BotAPI, update tgbotapi.Updat
 	cleaned := strings.TrimPrefix(input, "/delete ")
 	cleaned = strings.TrimSpace(cleaned)
 
-	id, err := strconv.Atoi(cleaned)
+	idInt, err := strconv.Atoi(cleaned)
 	if err != nil {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
 			"ID должен быть числом")
 		bot.Send(msg)
 		return
 	}
+
+	id := int64(idInt)
 
 	if cleaned == "" {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
@@ -155,7 +170,17 @@ func (h *DoctorHandler) HandleDelete(bot *tgbotapi.BotAPI, update tgbotapi.Updat
 		return
 	}
 
-	err = h.patientRepo.DeleteByID(id)
+	tgID := update.Message.From.ID
+	doctor, err := h.doctorRepo.GetByTelegramID(tgID)
+	if err != nil {
+		log.Println("Ошибка при поиске доктора", err)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+			"Доктор не найден")
+		bot.Send(msg)
+		return
+	}
+
+	err = h.patientRepo.DeleteByID(id, doctor.ID)
 	if err != nil {
 		log.Println("Ошибка при попытке удалить пациента", err)
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
